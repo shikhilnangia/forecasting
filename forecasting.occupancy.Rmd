@@ -1,0 +1,270 @@
+
+---
+title: "Apollo Food Forecasting"
+output: R Markup
+Submitted by: shikhil nangia
+---
+
+Try executing this chunk by pressing *Ctrl+Shift+Enter*. 
+
+
+```{r}
+dataset<-read.csv("Forecasting Food Case.csv",header = TRUE  )
+
+#timeSeriesObj = ts(dataset$BKFST_OCCUP,start=c(2012,10,01),frequency=52)
+
+#plot(toccupancy,ylab='Occupancy',main='Breakfast Occupancy(2012-2013)')
+
+
+dateobj<- seq(as.Date("2012-10-01"), as.Date("2013-01-23"), by = "day")
+
+ts_occupancy <- ts(dataset$BKFST_OCCUP,start=c(2012,as.numeric(format(dateobj[1], "%j"))),frequency=52)
+
+ts_occupancy_daily <- ts(dataset$BKFST_OCCUP,start=c(2012,as.numeric(format(dateobj[1], "%j"))),frequency=365)
+
+plot.ts(ts_occupancy,ylab='Occupancy',main='Breakfast Occupancy(2012-2013)')
+
+```
+
+
+```{r}
+#install.packages('zoo')
+
+#library(zoo)
+#t1<-zoo(dataset$BKFST_OCCUP, seq(from = as.Date("2012-10-01"), to = as.Date("2013-01-23"), by = 1))
+```
+
+
+
+```{r}
+cor(dataset[,c(2:9)],method = c("pearson"))
+
+#There is high Correlation between Sambar and Chutney 
+
+```
+
+
+#Simple Moving Averages
+```{r}
+library(forecast)
+par(mfrow = c(2,2))
+
+lim <- c(min(dataset$BKFST_OCCUP),max(dataset$BKFST_OCCUP))
+
+plot(dataset$BKFST_OCCUP, main="Raw Time series",ylim=lim)
+plot(ma(ts_occupancy_daily,3), main="Simple moving Averages(k=3)",ylim=lim)
+
+plot(ma(dataset$BKFST_OCCUP,7), main="Simple moving Averages(k=7)",ylim=lim)
+
+plot(ma(dataset$BKFST_OCCUP,15), main="Simple moving Averages(k=15)",ylim=lim)
+
+par(mfrow = c(1,1))
+
+```
+
+#Seasonal Decomposition by Loess Smoothing
+```{r}
+fit <- stl(ts_occupancy,s.window = "periodic")
+plot(fit)
+```
+```{r}
+fit_lin_trend <- tslm(ts_occupancy_daily ~ trend)
+pred <- forecast(fit_lin_trend, h=2)
+pred
+summary(fit_lin_trend)
+accuracy(fit_lin_trend)
+
+plot(pred, xlab = "Time", ylab = "Occupancy", main = "Actual and forecasted values (Linear Trend)")
+
+plot(ts_occupancy_daily)
+lines(fit_lin_trend$fitted, col = "red", lty = 2)
+points(pred$mean, col = "blue", pch = 16)
+
+plot(fit_lin_trend$residuals)
+
+par(mfrow = c(1,1))
+
+
+```
+```{r}
+par(mfrow = c(2,1))
+plot(ts_occupancy_daily)
+lines(fit_lin_trend$fitted, col = "red", lty = 2)
+points(pred$mean, col = "blue", pch = 16)
+
+plot(fit_lin_trend$residuals)
+
+par(mfrow = c(1,1))
+```
+```{r}
+#Exponential Trend
+fit_exp_trend <- tslm(ts_occupancy_daily ~ trend, lambda = 0)
+#lambda=0 means conversion of y (sales) into log 
+pred <- forecast(fit_exp_trend, h=4)
+pred
+
+accuracy(fit_exp_trend)
+
+plot(pred, xlab = "Time", ylab = "Occupancey", main = "Actual and forecasted values")
+
+par(mfrow = c(2,1))
+plot(ts_occupancy_daily)
+lines(fit_exp_trend$fitted, col = "red", lty = 2)
+points(pred$mean, col = "blue", pch = 16)
+
+plot(fit_exp_trend$residuals)
+
+par(mfrow = c(1,1))
+```
+
+##Checking for Quadratic Trend
+```{r}
+fit_quad_trend <- tslm(ts_occupancy_daily ~ trend + I(trend^2))
+
+#Forecasting for 2 periods
+pred <- forecast(fit_quad_trend, h=2)
+pred
+
+accuracy(fit_quad_trend)
+
+plot(pred, xlab = "Time", ylab = "Occupancy", main = "Actual and forecasted values")
+
+plot(ts_occupancy_daily)
+lines(fit_quad_trend$fitted, col = "red", lty = 2)
+points(pred$mean, col = "blue", pch = 16)
+
+```
+
+##Model with Seasonality
+```{r}
+fit_season <- tslm(ts_occupancy_daily ~ season)
+
+pred <- forecast(fit_season, h=2)
+pred
+
+accuracy(fit_season)
+
+plot(pred, xlab = "Time", ylab = " Occupancy", main = "Actual and forecasted values")
+
+```
+
+#Trend and Seasonality
+```{r}
+
+fit_season_trend <- tslm(ts_occupancy_daily ~ trend + I(trend^2) + season)
+
+pred <- forecast(fit_season_trend, h=2)
+pred
+
+accuracy(fit_season_trend)
+
+plot(pred, xlab = "Time", ylab = "Occupancy", main = "Actual and forecasted values")
+```
+
+
+#ARIMA
+```{r}
+
+ndiffs(ts_occupancy_daily)
+
+##Outputs 0 , however we will check with ADF TEst
+
+
+dOccupancy <- diff(ts_occupancy_daily)
+
+plot(dOccupancy)
+
+# Apply ADF test to check for stationarity.
+
+adf.test(dOccupancy)
+
+# ADF test proves that time series is stationary, p value : 0.01
+
+```
+
+
+```{r}
+par(mfrow = c(2,1))
+
+Acf(dOccupancy)
+Pacf(dOccupancy)
+
+par(mfrow = c(1,1))
+```
+#Fitting the model
+```{r}
+fit <- arima(dOccupancy, order = c(0,1,1))
+fit
+accuracy(fit)
+
+```
+
+
+#### Automated ARIMA Forecasting 
+```{r}
+
+fit1 <- auto.arima(ts_occupancy_daily)
+fit1
+
+forecast(fit1, 3)
+
+accuracy(fit1)
+
+plot(forecast(fit1, 3))
+```
+
+
+
+#Exponential smoothing assuming only level in series
+```{r}
+ANN <- ets(ts_occupancy_daily, model = "ANN")
+ANN
+
+pred_ANN <- forecast(ANN, 2)
+pred_ANN
+
+plot(pred_ANN, xlab = "Year", ylab = "Occupancy", main = "Breakfast Occupied")
+
+accuracy(ANN)
+```
+
+#Exponential smoothing assuming level and trend in the series
+```{r}
+AAN <- ets(ts_occupancy_daily, model = "AAN")
+AAN
+
+pred_AAN <- forecast(AAN, 2)
+pred_AAN
+
+plot(pred_AAN, xlab = "Year", ylab = "Occupancy", main = "Brkfast Occupancy")
+
+accuracy(AAN)
+```
+
+#Exponential smoothing assuming level, trend and seasonality
+```{r}
+AAA <- ets(ts_occupancy_daily, model = "AAA")
+AAA
+
+pred_AAA <- forecast(AAA, 2)
+pred_AAA
+plot(pred_AAA, xlab = "Time", ylab = "Occupancy", main = "Brkfast Occupancy")
+
+accuracy(AAA)
+
+```
+
+#Automatic exponential forecasting with ets ()
+```{r}
+Automatic <- ets(ts_occupancy_daily)
+Automatic
+
+plot(forecast(Automatic), main = "Bkfst Occupancy", xlab = "Time", ylab = "Occupancy", flty = 2)
+
+accuracy(Automatic)
+
+
+```
+
+
+

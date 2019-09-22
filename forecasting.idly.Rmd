@@ -1,0 +1,147 @@
+---
+title: "Forcasting Food"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+
+df <- read.csv("Forecasting Food Case.csv",header = TRUE  )
+
+my_data <- df[, c(3,4,5,6,7,9)]
+cor_food <- cor(my_data)
+round(cor_food, 2)
+```
+
+```{r}
+main_data <- df[, c(1,2,3,4,6,7,9)]
+Idly_ts <- ts(main_data$Idly, start = c(2012,10,01), frequency = 52)
+plot(Idly_ts)
+```
+
+
+```{r}
+#par(mfrow = c(2,1))
+fit <- stl(Idly_ts, s.window = "periodic")
+plot(fit)
+
+#fit$time.series
+
+#exp(fit$time.series)
+```
+
+
+Applying MA to Idly timeseries data
+```{r}
+lim <- c(min(Idly_ts), max(Idly_ts))
+par(mfrow = c(2,2))
+
+plot(Idly_ts, main = "Idly time series")
+
+
+plot(ma(Idly_ts, 7), main = "Simple Moving Averages (k = 7)", ylim = lim)
+
+plot(ma(Idly_ts, 15), main = "Simple Moving Averages (k = 15)", ylim = lim)
+
+
+par(mfrow = c(1,1))
+```
+
+
+Exponential smoothing assuming only level in series
+```{r}
+ANN <- ets(Idly_ts, model = "ANN")
+ANN
+
+pred_ANN <- forecast(ANN, 1)
+pred_ANN
+
+plot(pred_ANN, xlab = "Year", ylab = "Idly", main = "Idly Consumption")
+
+accuracy(ANN)
+```
+
+Exponential smoothing assuming level and trend in the series
+```{r}
+
+AAN <- ets(Idly_ts, model = "AAN")
+AAN
+
+pred_AAN <- forecast(AAN, 1)
+pred_AAN
+
+plot(pred_AAN, xlab = "Year", ylab = "Idly", main = "Idly Consumption")
+
+accuracy(AAN)
+```
+
+Exponential smoothing assuming level, trend and seasonality
+```{r}
+AA <- ets(Idly_ts, model = "AAA",damped=FALSE)
+AA
+accuracy(AA)
+
+pred_AAA <- forecast(AAA, 5)
+pred_AAA
+plot(pred_AAA, xlab = "Time", ylab = "Idly", main = "Idly Consumption")
+```
+
+Automatic exponential forecasting with ets ()
+```{r}
+Automatic <- ets(Idly_ts)
+Automatic
+
+plot(forecast(Automatic), main = "Idly Consumption", xlab = "Time", ylab = "Idly", flty = 2)
+
+```
+
+AIRMA
+```{r}
+library(tseries)
+
+# 1.Difference the time series to check for the trend
+ndiffs(Idly_ts)  # as ndiff is 0 means no trend in the data
+#the series is differenced once (lag = 1 is default) 
+ddata_ts <- diff(Idly_ts)
+plot(ddata_ts)
+
+#2. adf test to check stationarity in the data 
+adf.test(ddata_ts)
+
+#Since teh data is stationary we will move further 
+# possible models are selected based on ACF and PACF plots
+
+par(mfrow = c(2,1))
+
+Acf(ddata_ts)
+Pacf(ddata_ts)
+
+par(mfrow = c(1,1))
+
+# 3.fitting the model
+fit_idly <- arima(Idly_ts, order = c(0,1,1))
+fit_idly  # to look for aic value
+
+accuracy(fit_idly)   # to look for rmse and mape value
+
+### 4.Evaluating the model
+qqnorm(fit_idly$residuals)
+qqline(fit_idly$residuals)
+
+Box.test(fit_idly$residuals, type = "Ljung-Box")   ## box.test value should be >.05 to satisy the test
+    
+##5. forecast
+forecast(fit_idly, 10)
+
+```
+
+```{r}
+accuracy(ANN)
+accuracy(AAN)
+accuracy(AA)
+accuracy(fit_idly)
+```
+
